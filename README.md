@@ -28,7 +28,7 @@ php artisan storage:link
 → Será criado usuários como especificado no seeder
 
 Exemplo login admin:
-Email: admin@fmp.edu.br
+CPF: 000.000.000-00
 Senha: admin123
 
 ---
