@@ -9,28 +9,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
 
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
-        'nome',
-        'email',
-        'cpf',
-        'data_nascimento',
-        'matricula',
-        'password',
-        'tipo',
-        'avatar_url',
-        'curso_id',
-        'fase',
+        'nome', 'email', 'cpf', 'data_nascimento',
+        'matricula', 'password', 'tipo', 'avatar_url',
+        'curso_id', 'fase',
     ];
 
     protected $hidden = [
-        'password',
-        'remember_token',
+        'password', 'remember_token',
     ];
 
     protected $casts = [
@@ -39,27 +31,43 @@ class User extends Authenticatable
         'data_nascimento' => 'date',
     ];
 
-    // --------------------------------------------------------
-    // 🔥 BOOT: Cria a senha automaticamente se não enviada
-    // --------------------------------------------------------
     protected static function booted()
     {
         static::creating(function (User $user) {
             if (empty($user->password) && !empty($user->data_nascimento)) {
-                // Formata data BR: DDMMAAAA
-                $user->password = $user->data_nascimento->format('dmY');
+                try {
+                    $data = Carbon::parse($user->data_nascimento);
+                    $user->password = $data->format('dmY');
+                } catch (\Exception $e) {
+                    // Fallback opcional
+                }
             }
         });
     }
 
     // --------------------------------------------------------
-    // 🔥 Mutator explícito (opcional, mas seguro)
-    // Garante que password sempre seja string antes do hash
+    // Mutators (NOVO)
     // --------------------------------------------------------
-    public function setPasswordAttribute($value)
+
+    /**
+     * Garante que o CPF seja sempre salvo com a máscara XXX.XXX.XXX-XX
+     */
+    public function setCpfAttribute($value)
     {
-        // Laravel já faz hash automaticamente (por causa do cast)
-        $this->attributes['password'] = $value;
+        // 1. Remove tudo que não for número para limpar a entrada
+        $onlyNumbers = preg_replace('/\D/', '', $value);
+
+        // 2. Se tiver 11 dígitos, aplica a formatação padrão
+        if (strlen($onlyNumbers) === 11) {
+            $this->attributes['cpf'] = preg_replace(
+                '/(\d{3})(\d{3})(\d{3})(\d{2})/',
+                '$1.$2.$3-$4',
+                $onlyNumbers
+            );
+        } else {
+            // Caso venha algo fora do padrão (ex: passaporte), salva como veio ou limpo
+            $this->attributes['cpf'] = $value;
+        }
     }
 
     // --------------------------------------------------------
@@ -81,27 +89,9 @@ class User extends Authenticatable
         return $this->hasMany(Certificado::class, 'coordenador_id');
     }
 
-    // --------------------------------------------------------
-    // Helpers
-    // --------------------------------------------------------
-
-    public function isAluno(): bool
-    {
-        return $this->tipo === TipoUsuario::ALUNO;
-    }
-
-    public function isCoordenador(): bool
-    {
-        return $this->tipo === TipoUsuario::COORDENADOR;
-    }
-
-    public function isSecretaria(): bool
-    {
-        return $this->tipo === TipoUsuario::SECRETARIA;
-    }
-
-    public function isAdmin(): bool
-    {
-        return $this->tipo === TipoUsuario::ADMINISTRADOR;
-    }
+    // ... (restante dos helpers mantidos igual) ...
+    public function isAluno(): bool { return $this->tipo === TipoUsuario::ALUNO; }
+    public function isCoordenador(): bool { return $this->tipo === TipoUsuario::COORDENADOR; }
+    public function isSecretaria(): bool { return $this->tipo === TipoUsuario::SECRETARIA; }
+    public function isAdmin(): bool { return $this->tipo === TipoUsuario::ADMINISTRADOR; }
 }
